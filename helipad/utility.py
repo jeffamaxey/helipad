@@ -107,14 +107,11 @@ class CES(Utility):
 
 	#Doesn't depend on any other quantities
 	def mrs(self, good1, q1, good2, q2):
-		if self.elast==0:
-			if q1 < q2: return float('inf')
-			elif q1 > q2: return 0
-			else: return None #Undefined at the kink in the indifference curve
-
-		#Works for both Cobb-Douglas and the general CES
-		else:
+		if self.elast != 0:
 			return ((self.coeffs[good1]*q2)/(self.coeffs[good2]*q1)) ** (1/self.elast)
+		if q1 < q2: return float('inf')
+		elif q1 > q2: return 0
+		else: return None #Undefined at the kink in the indifference curve
 
 	def demand(self, budget, prices):
 		demand = {g:0 for g in self.goods}

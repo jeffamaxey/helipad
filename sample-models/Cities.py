@@ -57,12 +57,12 @@ class Land():
 	
 	#The add argument calculates the productivity as if the agent were already there, if he's not
 	def agentProd(self, H, add=False):
-		if self.loc=='rural': return sqrt(150) * H
-		else:
-			if add:
-				return 1/sqrt(self.pop(heli)+1) * (heli.data.getLast('hsum')+H)
-				# return (heli.data.getLast('urbanH')*p+H)/(p+1) * log(heli.data.getLast('hsum')+H) #wtf was I doing here?
-			else: return 1/sqrt(self.pop(heli)) * heli.data.getLast('hsum')
+		if self.loc=='rural':
+			if self.loc=='rural': return sqrt(150) * H
+		if add:
+			return 1/sqrt(self.pop(heli)+1) * (heli.data.getLast('hsum')+H)
+			# return (heli.data.getLast('urbanH')*p+H)/(p+1) * log(heli.data.getLast('hsum')+H) #wtf was I doing here?
+		else: return 1/sqrt(self.pop(heli)) * heli.data.getLast('hsum')
 			# else: return heli.data.getLast('urbanH')*log(heli.data.getLast('hsum'))
 	
 	def expWage(self, H):
@@ -85,10 +85,10 @@ def modelPreSetup(model):
 	model.births = {b:0 for b in heli.primitives['agent'].breeds}
 	model.deaths = 0
 	for b in heli.primitives['agent'].breeds:
-		setattr(model, 'moverate'+b, 0)
-		setattr(model, 'birthrate'+b, 0)
+		setattr(model, f'moverate{b}', 0)
+		setattr(model, f'birthrate{b}', 0)
 	model.deathrate = 0
-	
+
 	#Mark the different phases of the Malthusian model
 	model.events.clear()
 	if not model.param('city'):
@@ -99,7 +99,7 @@ def modelPreSetup(model):
 		def stab2(model):	return model.events['exp1'].triggered and model.t > model.events['exp1'].triggered+1000 and sum(diff(model.data.getLast('ruralH', 3000))) < 0
 		@heli.event
 		def end3(model): return model.events['stab2'].triggered and model.t >= model.events['stab2'].triggered + burnout
-	
+
 	#Start with the equilibrium population
 	else: model.param('num_agent', math.floor(2.55-1.69*model.param('fixed'))*popfactor)
 
@@ -129,7 +129,7 @@ def agentStep(agent, model, stage):
 		if model.param('city'):
 			otherloc = 'urban' if agent.breed == 'rural' else 'rural'
 			agent.expwage = model.land[otherloc].expWage(agent.H)
-		
+
 			#Decide whether or not to move
 			mvc = model.param('movecost')
 			if agent.expwage > agent.lastWage*1.2 and agent.wealth > mvc and model.t > 2:
@@ -138,23 +138,22 @@ def agentStep(agent, model, stage):
 				agent.wealth -= mvc
 				model.movers[agent.breed] += 1
 				agent.breed = otherloc
-				
+
 		agent.prod = model.land[agent.breed].agentProd(agent.H)
 		model.land[agent.breed].input += agent.prod #Work
-		
+
 		#Reproduce
 		randn = random.normal(1, 0.2)
 		if random.random() < model.param('deathrate'): agent.die()
 		elif agent.wealth > model.param('breedThresh') * (randn if agent.breed=='rural' else agent.H/4):
 			child = agent.reproduce(
-				inherit=['H', ('wealth', lambda w: w[0]/2)],
-				mutate={'H': 14.25} if not model.param('lockH') else {} #See footnote 3 for derivation
+				inherit=['H', ('wealth', lambda w: w[0] / 2)],
+				mutate={} if model.param('lockH') else {'H': 14.25},
 			)
 			agent.wealth -= agent.wealth/2 + 1 #-= breedThresh #Fixed cost
 			model.births[agent.breed] += 1
 			if child.H < 2: child.die()
-	
-	#Get paid in modelStep, then pay rent
+
 	elif stage==2:
 		agent.wealth -= model.param('rent') * agent.H + model.param('fixed')
 		if agent.wealth <= 0: agent.die()
@@ -168,8 +167,8 @@ def modelPostStep(model):
 		for b in model.primitives['agent'].breeds:
 			pop = len(model.agent(b))
 			if pop > 0:
-				setattr(model,'moverate'+b, model.movers[b]/pop)
-				setattr(model,'birthrate'+b, model.births[b]/pop)
+				setattr(model, f'moverate{b}', model.movers[b]/pop)
+				setattr(model, f'birthrate{b}', model.births[b]/pop)
 				model.movers[b] = 0
 				model.births[b] = 0
 		model.deathrate = model.deaths/len(model.agents['agent'])
@@ -193,13 +192,13 @@ viz = heli.useVisual(TimeSeries)
 @heli.reporter
 def hsum(model, loc='urban'):
 	upop = model.agent(loc)
-	return sum([a.H for a in upop]) if len(upop) > 0 else 1
+	return sum(a.H for a in upop) if len(upop) > 0 else 1
 
 def perCapGdp(model, loc):
 	def tmp(model):
 		pop = model.land[loc].pop(model)
-		if pop==0: return 0
-		else: return model.land[loc].product/pop
+		return 0 if pop==0 else model.land[loc].product/pop
+
 	return tmp
 
 viz.addPlot('pop', 'Population', 1, logscale=True)
@@ -211,20 +210,61 @@ heli.data.addReporter('theta', heli.data.modelReporter('deathrate'), smooth=0.99
 viz.plots['rates'].addSeries('theta', 'Death Rate', '#CCCCCC')
 
 for breed, d in heli.primitives['agent'].breeds.items():
-	heli.data.addReporter(breed+'Pop', heli.land[breed].pop)
-	heli.data.addReporter(breed+'H', heli.data.agentReporter('H', 'agent', breed=breed, percentiles=[25,75]))
-	heli.data.addReporter(breed+'Wage', heli.data.agentReporter('lastWage', 'agent', breed=breed, percentiles=[25,75]))
-	heli.data.addReporter(breed+'ExpWage', heli.data.agentReporter('expwage', 'agent', breed=breed, percentiles=[25,75]))
-	heli.data.addReporter(breed+'Wealth', heli.data.agentReporter('wealth', 'agent', breed=breed, percentiles=[25,75]))
-	heli.data.addReporter(breed+'moveRate', heli.data.modelReporter('moverate'+breed), smooth=0.99)
-	heli.data.addReporter(breed+'birthrate', heli.data.modelReporter('birthrate'+breed), smooth=0.99)
-	viz.plots['pop'].addSeries(breed+'Pop', breed.title()+' Population', d.color)
-	viz.plots['hcap'].addSeries(breed+'H', breed.title()+' Human Capital', d.color)
-	viz.plots['wage'].addSeries(breed+'Wage', breed.title()+' Wage', d.color)
-	viz.plots['wage'].addSeries(breed+'ExpWage', breed.title()+' Expected Wage', d.color2, visible=False)
-	viz.plots['wealth'].addSeries(breed+'Wealth', breed.title()+' Wealth', d.color)
-	viz.plots['rates'].addSeries(breed+'moveRate', breed.title()+' Moveaway Rate', d.color2)
-	viz.plots['rates'].addSeries(breed+'birthrate', breed.title()+' Birthrate', d.color)
+	heli.data.addReporter(f'{breed}Pop', heli.land[breed].pop)
+	heli.data.addReporter(
+		f'{breed}H',
+		heli.data.agentReporter('H', 'agent', breed=breed, percentiles=[25, 75]),
+	)
+	heli.data.addReporter(
+		f'{breed}Wage',
+		heli.data.agentReporter(
+			'lastWage', 'agent', breed=breed, percentiles=[25, 75]
+		),
+	)
+	heli.data.addReporter(
+		f'{breed}ExpWage',
+		heli.data.agentReporter(
+			'expwage', 'agent', breed=breed, percentiles=[25, 75]
+		),
+	)
+	heli.data.addReporter(
+		f'{breed}Wealth',
+		heli.data.agentReporter(
+			'wealth', 'agent', breed=breed, percentiles=[25, 75]
+		),
+	)
+	heli.data.addReporter(
+		f'{breed}moveRate',
+		heli.data.modelReporter(f'moverate{breed}'),
+		smooth=0.99,
+	)
+	heli.data.addReporter(
+		f'{breed}birthrate',
+		heli.data.modelReporter(f'birthrate{breed}'),
+		smooth=0.99,
+	)
+	viz.plots['pop'].addSeries(
+		f'{breed}Pop', f'{breed.title()} Population', d.color
+	)
+	viz.plots['hcap'].addSeries(
+		f'{breed}H', f'{breed.title()} Human Capital', d.color
+	)
+	viz.plots['wage'].addSeries(f'{breed}Wage', f'{breed.title()} Wage', d.color)
+	viz.plots['wage'].addSeries(
+		f'{breed}ExpWage',
+		f'{breed.title()} Expected Wage',
+		d.color2,
+		visible=False,
+	)
+	viz.plots['wealth'].addSeries(
+		f'{breed}Wealth', f'{breed.title()} Wealth', d.color
+	)
+	viz.plots['rates'].addSeries(
+		f'{breed}moveRate', f'{breed.title()} Moveaway Rate', d.color2
+	)
+	viz.plots['rates'].addSeries(
+		f'{breed}birthrate', f'{breed.title()} Birthrate', d.color
+	)
 
 heli.launchCpanel()
 

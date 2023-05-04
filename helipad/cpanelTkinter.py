@@ -40,6 +40,7 @@ class Cpanel(tk.Tk):
 					if param.per is None: param.callback(self.model, param.name, val)
 					else: param.callback(self.model, param.name, item, val)
 			return sv
+
 		Param.setVar = setVar
 
 		#For shock buttons.
@@ -127,7 +128,6 @@ class Cpanel(tk.Tk):
 					i+=1
 				return param.element
 
-			#Single parameters, including the individual per-item parameters
 			else:
 				title = param.title if item is None else item.title()
 				wrap = tk.Frame(frame, bg=bg, padx=10 if item is None and not getattr(param,'config',False) else 0, pady=8 if item is None and not getattr(param,'config',False) else 0)
@@ -148,7 +148,7 @@ class Cpanel(tk.Tk):
 						el = checkEntry(wrap, title, bg=bg, width=15, padx=0 if getattr(param,'config',False) else 10, pady=0 if getattr(param,'config',False) else 5, type='int' if param.entryType is int else 'string', command=param.setVar(item))
 						if param.name=='stopafter' and param.event:
 							el.disable()
-							el.entryValue.set('Event: '+param.get())
+							el.entryValue.set(f'Event: {param.get()}')
 							el.checkVar.set(True)
 							el.textbox.config(font=('Helvetica Neue', 12,'italic')) #Lucida doesn't have an italic?
 						else: el.set(dflt)
@@ -158,7 +158,6 @@ class Cpanel(tk.Tk):
 						drawCircle(wrap, param.pKeys[item].color.hex, bg).grid(row=0, column=0)
 					else: el.pack(anchor='center' if param.type=='check' else 'w')
 
-				#These need a separate label
 				else:
 					if param.type == 'menu':
 						v = tk.StringVar(value=param.opts[val])
@@ -428,11 +427,11 @@ class expandableFrame(tk.Frame):
 	def open(self, val):
 		if val: #open
 			self.subframe.grid(row=1, column=0, columnspan=3, padx=self.padx, pady=0, sticky='we')
-			self.titleLabel['text'] = self.text+' '+'▾'
+			self.titleLabel['text'] = f'{self.text} ▾'
 			self._open.set(1)
 		else: #close
 			self.subframe.grid_forget()
-			self.titleLabel['text'] = self.text+' '+'▸'
+			self.titleLabel['text'] = f'{self.text} ▸'
 			self._open.set(0)
 
 # A checkbox-like widget whose toggle is the entire element
@@ -522,7 +521,7 @@ class checkEntry(tk.Frame):
 		self.checkbox.grid(row=0, column=0)
 
 	def disableTextfield(self):
-		self.textbox.config(state='disabled' if not self.checkVar.get() else 'normal')
+		self.textbox.config(state='normal' if self.checkVar.get() else 'disabled')
 		if callable(self.callback): self.callback(self.get())
 
 	#Return False or the value of the textbox

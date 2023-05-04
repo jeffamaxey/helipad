@@ -51,8 +51,7 @@ class Bank(baseAgent):
 	@property
 	def reserveRatio(self):
 		l = self.liabilities
-		if l == 0: return 1
-		else: return self.stocks[self.model.goods.money] / l
+		return 1 if l == 0 else self.stocks[self.model.goods.money] / l
 
 	@property
 	def realInterest(self): return self.i - self.inflation
@@ -160,7 +159,8 @@ class Loan():
 		self.amortizeAmt = 0
 
 	@property
-	def owe(self): return sum([l['amount'] for l in self.loans])
+	def owe(self):
+		return sum(l['amount'] for l in self.loans)
 
 	def step(self):
 		#Charge the minimum repayment if the agent hasn't already amortized more than that amount
@@ -347,13 +347,15 @@ def checkBalance(agent, balance, model):
 def cbstep(self):
 	#Record macroeconomic vars at the end of the last stage
 	#Getting demand has it lagged one period…
-	self.ngdp = sum(self.model.data.getLast('demand-'+good) * self.model.agents['store'][0].price[good] for good in self.model.goods.nonmonetary)
+	self.ngdp = sum(
+		self.model.data.getLast(f'demand-{good}')
+		* self.model.agents['store'][0].price[good]
+		for good in self.model.goods.nonmonetary
+	)
 	if not self.ngdpAvg: self.ngdpAvg = self.ngdp
 	self.ngdpAvg = (2 * self.ngdpAvg + self.ngdp) / 3
 
-	#Set macroeconomic targets
-	expand = 0
-	if self.ngdpTarget: expand = self.ngdpTarget - self.ngdpAvg
+	expand = self.ngdpTarget - self.ngdpAvg if self.ngdpTarget else 0
 	if self.model.param('num_bank') > 0: expand *= self.model.agents['bank'][0].reserveRatio
 	if expand != 0: self.expand(expand)
 CentralBank.step = cbstep
@@ -386,7 +388,7 @@ CentralBank.M2 = property(M2)
 def cbP(self):
 	# denom = 0
 	# numer = 0
-	if not 'store' in self.model.agents: return None
+	if 'store' not in self.model.agents: return None
 	return mean(array(list(self.model.agents['store'][0].price.values())))
 	# for s in self.model.agents['store']:
 	# 	volume = sum(list(s.lastDemand.values()))

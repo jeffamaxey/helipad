@@ -60,8 +60,7 @@ heli.params.add('strategies', 'Strategies', 'checkgrid',
 #===============
 
 def TFT(rnd, history, own):
-	if not history: return True
-	else: return history[-1]
+	return history[-1] if history else True
 
 def alwaysCooperate(rnd, history, own): return True
 
@@ -90,9 +89,8 @@ def Nydegger(rnd, history, own):
 	return A not in [1,6,7,17,22,23,26,29,30,31,33,38,39,45,49,54,55,58,61]
 
 def Grofman(rnd, history, own):
-	if not history: return True
-	elif history[-1] ^ own[-1]: return random.choice(2, 1, p=[5/7, 2/7])[0]
-	else: return True
+	if not history or not history[-1] ^ own[-1]: return True
+	else: return random.choice(2, 1, p=[5/7, 2/7])[0]
 
 def Shubik(rnd, history, own):
 	k=0 #The number of rounds to retaliate
@@ -103,16 +101,13 @@ def Shubik(rnd, history, own):
 		else: rs = 0 #Make sure we're only counting current retaliations
 
 	if not history: return True
-	if not rs and not history[-1]: return False #Start retaliation if the opponent defected last period
-	if rs and rs < k: return False #Keep retaliating if you've started a string of defections and haven't reached the limit
-	return True
+	return False if not rs and not history[-1] else not rs or rs >= k
 
 def Grudger(rnd, history, own):
 	return False not in history
 
 def Davis(rnd, history, own):
-	if len(history) < 10: return True
-	else: return Grudger(rnd, history, own)
+	return True if len(history) < 10 else Grudger(rnd, history, own)
 
 def Feld(rnd, history, own):
 	if not history: return True
@@ -123,7 +118,7 @@ def Feld(rnd, history, own):
 
 def Joss(rnd, history, own):
 	if not history or history[-1]: return random.choice(2, 1, p=[0.1, 0.9])[0]
-	if not history[-1]: return False
+	return False
 
 #===============
 # MODEL LOGIC
@@ -154,7 +149,7 @@ def modelPreSetup(model):
 
 	#Clear breeds from the previous run
 	for b in model.primitives['agent'].breeds:
-		model.data.removeReporter(b+'-proportion')
+		model.data.removeReporter(f'{b}-proportion')
 	model.primitives['agent'].breeds.clear()
 
 	for k in model.param('strategies'):
@@ -163,8 +158,8 @@ def modelPreSetup(model):
 	model.param('num_agent', len(model.primitives['agent'].breeds)*model.param('n')) #Three of each strategy, for speed
 
 	for b, d in model.primitives['agent'].breeds.items():
-		model.data.addReporter(b+'-proportion', proportionReporter(b))
-		plot.addSeries(b+'-proportion', b, d.color)
+		model.data.addReporter(f'{b}-proportion', proportionReporter(b))
+		plot.addSeries(f'{b}-proportion', b, d.color)
 
 #===============
 # CONFIGURATION

@@ -60,11 +60,15 @@ class Store(baseAgent):
 			#Set prices
 			#Change in the direction of hitting the inventory target
 			# self.price[i] += log(self.invTarget[i] / (self.inventory[i][0] + self.lastShortage[i])) #Jim's pricing rule?
-			self.price[i] += (self.invTarget[i] - self.stocks[i] + self.model.data.getLast('shortage-'+i))/100 #/150
+			self.price[i] += (
+				self.invTarget[i]
+				- self.stocks[i]
+				+ self.model.data.getLast(f'shortage-{i}')
+			) / 100
 
 			#Adjust in proportion to the rate of inventory change
 			#Positive deltaInv indicates falling inventory; negative deltaInv rising inventory
-			lasti = self.model.data.getLast('inv-'+i,2)[0] if self.model.t > 1 else 0
+			lasti = self.model.data.getLast(f'inv-{i}', 2)[0] if self.model.t > 1 else 0
 			deltaInv = lasti - self.stocks[i]
 			self.price[i] *= (1 + deltaInv/(50 ** self.model.param('pSmooth')))
 			if self.price[i] < 0: self.price[i] = 1
@@ -98,7 +102,8 @@ def setup():
 	# UPDATE CALLBACKS
 
 	def ngdpUpdater(model, var, val):
-		if model.hasModel: model.cb.ngdpTarget = val if not val else model.cb.ngdp
+		if model.hasModel:
+			model.cb.ngdpTarget = model.cb.ngdp if val else val
 
 	def rbalUpdater(model, var, breed, val):
 		if model.hasModel:
@@ -163,42 +168,87 @@ def setup():
 		return reporter
 
 	for breed, d in heli.primitives['agent'].breeds.items():
-		heli.data.addReporter('rbalDemand-'+breed, rbaltodemand(breed))
-		heli.data.addReporter('shortage-'+AgentGoods[breed], shortageReporter(AgentGoods[breed]))
-		heli.data.addReporter('eCons-'+breed, heli.data.agentReporter('expCons', 'agent', breed=breed, stat='sum'))
+		heli.data.addReporter(f'rbalDemand-{breed}', rbaltodemand(breed))
+		heli.data.addReporter(
+			f'shortage-{AgentGoods[breed]}', shortageReporter(AgentGoods[breed])
+		)
+		heli.data.addReporter(
+			f'eCons-{breed}',
+			heli.data.agentReporter('expCons', 'agent', breed=breed, stat='sum'),
+		)
 		# heli.data.addReporter('rWage-'+breed, lambda model: heli.data.agentReporter('wage', 'store')(model) / heli.data.agentReporter('price', 'store', good=b.good)(model))
 		# heli.data.addReporter('expWage', heli.data.agentReporter('expWage', 'agent'))
-		heli.data.addReporter('rBal-'+breed, heli.data.agentReporter('realBalances', 'agent', breed=breed))
-		heli.data.addReporter('invTarget-'+AgentGoods[breed], heli.data.agentReporter('invTarget', 'store', good=AgentGoods[breed]))
-		heli.data.addReporter('portion-'+AgentGoods[breed], heli.data.agentReporter('portion', 'store', good=AgentGoods[breed]))
+		heli.data.addReporter(
+			f'rBal-{breed}',
+			heli.data.agentReporter('realBalances', 'agent', breed=breed),
+		)
+		heli.data.addReporter(
+			f'invTarget-{AgentGoods[breed]}',
+			heli.data.agentReporter('invTarget', 'store', good=AgentGoods[breed]),
+		)
+		heli.data.addReporter(
+			f'portion-{AgentGoods[breed]}',
+			heli.data.agentReporter('portion', 'store', good=AgentGoods[breed]),
+		)
 
-		viz.plots['demand'].addSeries('eCons-'+breed, breed.title()+'s\' Expected Consumption', d.color2)
-		viz.plots['shortage'].addSeries('shortage-'+AgentGoods[breed], AgentGoods[breed].title()+' Shortage', d.color)
-		viz.plots['rbal'].addSeries('rbalDemand-'+breed, breed.title()+' Target Balances', d.color2)
-		viz.plots['rbal'].addSeries('rBal-'+breed, breed.title()+ 'Real Balances', d.color)
-		viz.plots['inventory'].addSeries('invTarget-'+AgentGoods[breed], AgentGoods[breed].title()+' Inventory Target', heli.goods[AgentGoods[breed]].color2)
-		viz.plots['capital'].addSeries('portion-'+AgentGoods[breed], AgentGoods[breed].title()+' Capital', heli.goods[AgentGoods[breed]].color)
-		# viz.plots['wage'].addSeries('expWage', 'Expected Wage', '#999999')
+		viz.plots['demand'].addSeries(
+			f'eCons-{breed}', breed.title() + 's\' Expected Consumption', d.color2
+		)
+		viz.plots['shortage'].addSeries(
+			f'shortage-{AgentGoods[breed]}',
+			f'{AgentGoods[breed].title()} Shortage',
+			d.color,
+		)
+		viz.plots['rbal'].addSeries(
+			f'rbalDemand-{breed}', f'{breed.title()} Target Balances', d.color2
+		)
+		viz.plots['rbal'].addSeries(
+			f'rBal-{breed}', f'{breed.title()}Real Balances', d.color
+		)
+		viz.plots['inventory'].addSeries(
+			f'invTarget-{AgentGoods[breed]}',
+			f'{AgentGoods[breed].title()} Inventory Target',
+			heli.goods[AgentGoods[breed]].color2,
+		)
+		viz.plots['capital'].addSeries(
+			f'portion-{AgentGoods[breed]}',
+			f'{AgentGoods[breed].title()} Capital',
+			heli.goods[AgentGoods[breed]].color,
+		)
+			# viz.plots['wage'].addSeries('expWage', 'Expected Wage', '#999999')
 
 	#Do this one separately so it draws on top
 	for good, g in heli.goods.nonmonetary.items():
-		heli.data.addReporter('inv-'+good, heli.data.agentReporter('stocks', 'store', good=good))
-		viz.plots['inventory'].addSeries('inv-'+good, good.title()+' Inventory', g.color)
-		heli.data.addReporter('price-'+good, heli.data.agentReporter('price', 'store', good=good))
-		viz.plots['prices'].addSeries('price-'+good, good.title()+' Price', g.color)
+		heli.data.addReporter(
+			f'inv-{good}', heli.data.agentReporter('stocks', 'store', good=good)
+		)
+		viz.plots['inventory'].addSeries(
+			f'inv-{good}', f'{good.title()} Inventory', g.color
+		)
+		heli.data.addReporter(
+			f'price-{good}', heli.data.agentReporter('price', 'store', good=good)
+		)
+		viz.plots['prices'].addSeries(
+			f'price-{good}', f'{good.title()} Price', g.color
+		)
 
 	#Price ratio plots
 	def ratioReporter(item1, item2):
 		def reporter(model):
 			return model.data.agentReporter('price', 'store', good=item1)(model)/model.data.agentReporter('price', 'store', good=item2)(model)
 		return reporter
+
 	viz.addPlot('ratios', 'Price Ratios', position=3, logscale=True)
 	viz.plots['ratios'].addSeries(lambda t: 1, '', '#CCCCCC')	#plots ratio of 1 for reference without recording a column of ones
 
 	for r in combinations(heli.goods.nonmonetary.keys(), 2):
-		heli.data.addReporter('ratio-'+r[0]+'-'+r[1], ratioReporter(r[0], r[1]))
+		heli.data.addReporter(f'ratio-{r[0]}-{r[1]}', ratioReporter(r[0], r[1]))
 		c1, c2 = heli.goods[r[0]].color, heli.goods[r[1]].color
-		viz.plots['ratios'].addSeries('ratio-'+r[0]+'-'+r[1], r[0].title()+'/'+r[1].title()+' Ratio', c1.blend(c2))
+		viz.plots['ratios'].addSeries(
+			f'ratio-{r[0]}-{r[1]}',
+			f'{r[0].title()}/{r[1].title()} Ratio',
+			c1.blend(c2),
+		)
 
 	#Misc plots
 	heli.data.addReporter('ngdp', lambda model: model.cb.ngdp)
@@ -269,9 +319,13 @@ def setup():
 		agent.expCons = (19 * agent.expCons + basicq-negadjust)/20		#Set expected consumption as a decaying average of consumption history
 
 	def realBalances(agent):
-		if not hasattr(agent, 'store'): return 0
-		return agent.balance/agent.store.price[agent.item]
-		# return agent.balance/agent.model.cb.P
+		return (
+			agent.balance / agent.store.price[agent.item]
+			if hasattr(agent, 'store')
+			else 0
+		)
+			# return agent.balance/agent.model.cb.P
+
 	Agent.realBalances = property(realBalances)
 
 	@heli.hook
@@ -292,6 +346,7 @@ def setup():
 	def shock(v):
 		c = random.normal(v, 4)
 		return c if c >= 1 else 1
+
 	heli.shocks.add('Dwarf real balances', ('rbd','breed','dwarf','agent'), shock, heli.shocks.randn(2), active=False)
 
 	#Shock the money supply
@@ -300,6 +355,7 @@ def setup():
 		m = model.cb.M0 * (1+pct/100)
 		m = max(m, 10000)		#Things get weird when there's a money shortage
 		model.cb.M0 = m
+
 	heli.shocks.add('M0 (2% prob)', None, mshock, heli.shocks.randn(2), desc="Shocks the money supply a random percentage (µ=1, σ=15) with 2% probability each period")
 
 	#Only one shock at a time
@@ -312,6 +368,7 @@ def setup():
 
 		if 'M0' in val[0] and val[1]: model.param('ngdpTarget', False)
 		elif 'Dwarf' in val[0] and val[1]: model.param('ngdpTarget', True)
+
 	heli.params['shocks'].callback = shocksCallback
 
 	return heli
@@ -331,19 +388,21 @@ class CentralBank(baseAgent):
 		self.model = model
 		self.stocks[self.model.goods.money] = M0 #Has to have assets in order to contract
 
-		self.ngdpTarget = False if not model.param('ngdpTarget') else 10000
+		self.ngdpTarget = 10000 if model.param('ngdpTarget') else False
 
 	def step(self):
 
 		#Record macroeconomic vars at the end of the last stage
 		#Getting demand has it lagged one period…
-		self.ngdp = sum(self.model.data.getLast('demand-'+good) * self.model.agents['store'][0].price[good] for good in self.model.goods.nonmonetary)
+		self.ngdp = sum(
+			self.model.data.getLast(f'demand-{good}')
+			* self.model.agents['store'][0].price[good]
+			for good in self.model.goods.nonmonetary
+		)
 		if not self.ngdpAvg: self.ngdpAvg = self.ngdp
 		self.ngdpAvg = (2 * self.ngdpAvg + self.ngdp) / 3
 
-		#Set macroeconomic targets
-		expand = 0
-		if self.ngdpTarget: expand = self.ngdpTarget - self.ngdpAvg
+		expand = self.ngdpTarget - self.ngdpAvg if self.ngdpTarget else 0
 		if expand != 0: self.expand(expand)
 
 	def expand(self, amount):

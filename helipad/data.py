@@ -75,9 +75,40 @@ class Data:
 		if prim is None: prim = next(iter(self.model.primitives))
 		# if breed and isinstance(breed, bool): return [self.agentReporter(key+'-'+br, prim, br, good, stat, **kwargs) for br in self.model.primitives[prim].breeds]
 		if 'percentiles' in kwargs:
-			subplots = {('' if not breed else breed)+key+'-'+str(p)+'-pctile':self.agentReporter(key, prim, breed=breed, good=good, stat='percentile-'+str(p)) for p in kwargs['percentiles']}
+			subplots = {
+				(breed if breed else '')
+				+ key
+				+ '-'
+				+ str(p)
+				+ '-pctile': self.agentReporter(
+					key, prim, breed=breed, good=good, stat=f'percentile-{str(p)}'
+				)
+				for p in kwargs['percentiles']
+			}
 		elif 'std' in kwargs:
-			subplots = {('' if not breed else breed)+key+'+'+str(kwargs['std'])+'std': self.agentReporter(key, prim, breed=breed, good=good, stat='mstd-p-'+str(kwargs['std'])), key+'-'+str(kwargs['std'])+'std': self.agentReporter(key, prim, breed=breed, good=good, stat='mstd-m-'+str(kwargs['std']))}
+			subplots = {
+				(breed if breed else '')
+				+ key
+				+ '+'
+				+ str(kwargs['std'])
+				+ 'std': self.agentReporter(
+					key,
+					prim,
+					breed=breed,
+					good=good,
+					stat='mstd-p-' + str(kwargs['std']),
+				),
+				key
+				+ '-'
+				+ str(kwargs['std'])
+				+ 'std': self.agentReporter(
+					key,
+					prim,
+					breed=breed,
+					good=good,
+					stat='mstd-m-' + str(kwargs['std']),
+				),
+			}
 		else: subplots = None
 
 		def reporter(model):
@@ -110,6 +141,7 @@ class Data:
 				if op=='p': return np.mean(u) + coef * np.std(u)
 				else: return np.mean(u) - coef * np.std(u)
 			else: raise ValueError(_('Invalid statistic {}.').format(stat))
+
 		return (reporter, subplots) if subplots is not None else reporter
 
 	#

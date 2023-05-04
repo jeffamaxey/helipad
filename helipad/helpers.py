@@ -15,7 +15,7 @@ def isIpy():
 #Check whether Helipad is running in an interactive notebook. However, get_ipython() comes
 # back undefined inside callbacks. So cache the value once, the first time it runs.
 def isNotebook():
-	if not '__helipad_ipy' in globals():
+	if '__helipad_ipy' not in globals():
 		try:
 			globals()['__helipad_ipy'] = 'InteractiveShell' in get_ipython().__class__.__name__
 		except NameError: globals()['__helipad_ipy'] = False

@@ -58,7 +58,7 @@ def war(demes, primitive, model, stage):
 	#Colonize
 	pop = len(demes[not result].agents['agent'])
 	for a in demes[not result].agents['agent']: a.die()
-	for i in range(pop):
+	for _ in range(pop):
 		choice(demes[result].agents['agent']).reproduce().transfer(demes[not result])
 
 @heli.hook
@@ -68,15 +68,16 @@ def demeStep(deme, model, stage):
 	#Reproduce
 	if stage==2:
 		for a in deme.agents['agent']:
-			for i in range(a.stocks['payoff']): a.reproduce()
+			for _ in range(a.stocks['payoff']):
+				a.reproduce()
 			a.die()
 
 #Normalize population at the beginning of stage 3
 @heli.hook
 def modelStep(model, stage):
 	if stage==3:
+		targetDpop = 20
 		for d in model.agents['deme']:
-			targetDpop = 20
 			while len(d.agents['agent']) > targetDpop: choice(d.agents['agent']).die()
 			while len(d.agents['agent']) < targetDpop: choice(d.agents['agent']).reproduce()
 

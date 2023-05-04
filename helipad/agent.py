@@ -34,10 +34,14 @@ class baseAgent:
 		#Has to be a static property since we're checking as the object initializes
 		if hasattr(super(), 'runInit'): super().__init__()
 
-		self.model.doHooks(['baseAgentInit', self.primitive+'Init'], [self, self.model])
+		self.model.doHooks(
+			['baseAgentInit', f'{self.primitive}Init'], [self, self.model]
+		)
 
 	def step(self, stage):
-		self.model.doHooks(['baseAgentStep', self.primitive+'Step'], [self, self.model, stage])
+		self.model.doHooks(
+			['baseAgentStep', f'{self.primitive}Step'], [self, self.model, stage]
+		)
 		if hasattr(super(), 'runInit'): super().step(stage) #For multi-level models
 		if stage == self.model.stages: self.age += 1
 
@@ -185,7 +189,7 @@ class baseAgent:
 			stat = None
 			if isinstance(a, tuple): a, stat = a
 			v = [getattr(p,a) for p in parents if hasattr(p,a)] #List of values, filtering those without
-			if len(v)==0: continue
+			if not v: continue
 
 			#Default statistic if unspecified. 'mean' for numbers, and 'first' for non-numbers.
 			if stat is None:
@@ -195,7 +199,8 @@ class baseAgent:
 			elif stat=='sum': n = sum(v)
 			elif stat=='gmean': n = np.exp(np.log(v).sum()/len(v))
 			elif stat=='first': n = v[0]
-			elif stat=='last': n = v[len(v)-1]
+			elif stat=='last':
+				n = v[-1]
 			elif stat in ('rand', 'random'): n = choice(v)
 			elif stat=='max': n = max(v)
 			elif stat=='min': n = min(v)
@@ -223,7 +228,10 @@ class baseAgent:
 			p.newEdge(newagent,'lineage', True) #Keep track of parent-child relationships
 		self.model.agents[self.primitive].append(newagent)
 
-		self.model.doHooks(['baseAgentReproduce', self.primitive+'Reproduce'], [parents, newagent, self.model])
+		self.model.doHooks(
+			['baseAgentReproduce', f'{self.primitive}Reproduce'],
+			[parents, newagent, self.model],
+		)
 		return newagent
 
 	def die(self, updateGUI=True):
@@ -231,7 +239,7 @@ class baseAgent:
 		self.model.agents[self.primitive].remove(self)
 		for edge in self.alledges: edge.cut()
 		self.dead = True
-		self.model.doHooks(['baseAgentDie', self.primitive+'Die'], [self])
+		self.model.doHooks(['baseAgentDie', f'{self.primitive}Die'], [self])
 
 	@property
 	def parent(self):
@@ -254,26 +262,26 @@ class baseAgent:
 	def outbound(self, kind='edge', undirected=False, obj='edge'):
 		if obj not in ['agent', 'edge']: raise ValueError(_('Object must be specified either \'agent\' or \'edge\'.'))
 		if kind is None: edges = self.alledges
-		else:
-			if kind not in self.edges: return []
+		elif kind in self.edges:
 			edges = self.edges[kind]
+		else: return []
 		ob = [edge for edge in edges if edge.startpoint == self or (undirected and not edge.directed)]
 		return ob if obj=='edge' else [e.partner(self) for e in ob]
 
 	def inbound(self, kind='edge', undirected=False, obj='edge'):
 		if obj not in ['agent', 'edge']: raise ValueError(_('Object must be specified either \'agent\' or \'edge\'.'))
 		if kind is None: edges = self.alledges
-		else:
-			if kind not in self.edges: return []
+		elif kind in self.edges:
 			edges = self.edges[kind]
+		else: return []
 		ib = [edge for edge in edges if edge.endpoint == self or (undirected and not edge.directed)]
 		return ib if obj=='edge' else [e.partner(self) for e in ib]
 
 	def edgesWith(self, partner, kind='edge'):
-		if kind is not None:
-			if kind not in self.edges: return []
+		if kind is None: edges = self.alledges
+		elif kind not in self.edges: return []
+		else:
 			edges = self.edges[kind]
-		else: edges = self.alledges
 		return [edge for edge in edges if self in edge.vertices and partner in edge.vertices]
 
 	@property
@@ -292,7 +300,9 @@ class baseAgent:
 		dest.agents[self.primitive].append(self)
 		self.model = dest
 		origin.agents[self.primitive].remove(self)
-		self.model.doHooks(['baseAgentMove', self.primitive+'Move'], [self, origin, dest])
+		self.model.doHooks(
+			['baseAgentMove', f'{self.primitive}Move'], [self, origin, dest]
+		)
 
 #The default agent class corresponding to the 'agent' primitive.
 class Agent(baseAgent):
@@ -361,8 +371,8 @@ class Edge:
 
 		#Add object to each agent, and to the model
 		for agent in self.vertices:
-			if not kind in agent.edges: agent.edges[kind] = []
-			if not self in agent.edges[kind]: agent.edges[kind].append(self) #Don't add self-links twice
+			if kind not in agent.edges: agent.edges[kind] = []
+			if self not in agent.edges[kind]: agent.edges[kind].append(self) #Don't add self-links twice
 
 		agent1.model.doHooks('edgeInit', [self, kind, agent1, agent2])
 

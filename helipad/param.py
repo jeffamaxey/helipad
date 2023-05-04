@@ -21,12 +21,11 @@ class Param(Item):
 	#Per-breed specific generic:	dict{int} → dict{int}
 	def reset(self):
 		if self.per is None: self.setSpecific(self.default)
+		elif isinstance(self.default, dict):
+			for i in self.pKeys:
+				self.setSpecific(self.default[i] if i in self.default else self.defaultVal, i)
 		else:
-			if isinstance(self.default, dict):
-				for i in self.pKeys:
-					self.setSpecific(self.default[i] if i in self.default else self.defaultVal, i)
-			else:
-				for i in self.pKeys: self.setSpecific(self.default, i)
+			for i in self.pKeys: self.setSpecific(self.default, i)
 
 	#Common code for the set methods
 	def setParent(self, val, item=None, updateGUI=True):
@@ -144,8 +143,7 @@ class SliderParam(Param):
 		v = super().getSpecific(item)
 		#Have sliders with an int step value return an int
 		if self.opts is not None and 'step' in self.opts and isinstance(self.opts['step'], int):
-			if isinstance(v, dict): v = {k: int(val) for k,val in v.items()}
-			else: v = int(v)
+			v = {k: int(val) for k,val in v.items()} if isinstance(v, dict) else int(v)
 		return v
 
 	@property
@@ -195,14 +193,11 @@ class CheckentryParam(Param):
 			if self.name=='stopafter' and self.event: return self.svar
 			elif hasattr(self, 'element') and not isNotebook(): return self.element.get()
 			else: return self.svar if self.bvar else False
-		#Per-item parameter, get all
 		elif item is None:
 			if hasattr(self, 'elements') and not isNotebook(): return {k: v.get() for k,v in self.elements.items()}
 			else: return {k: self.svar[k] if self.bvar[k] else False for k in self.pKeys}
-		#Per-item parameter, get one
-		else:
-			if hasattr(self, 'elements') and item in self.elements and not isNotebook(): return self.elements[item].get()
-			else: return self.svar[item] if self.bvar[item] else False
+		elif hasattr(self, 'elements') and item in self.elements and not isNotebook(): return self.elements[item].get()
+		else: return self.svar[item] if self.bvar[item] else False
 
 	def setSpecific(self, val, item=None, updateGUI=True):
 		self.setParent(val, item, False) #Don't update the GUI because it's a complex multivar type
@@ -215,11 +210,11 @@ class CheckentryParam(Param):
 					if hasattr(self, 'element'):
 						self.disable()
 						if isNotebook():
-							self.element.children[1].value = 'Event: '+val
+							self.element.children[1].value = f'Event: {val}'
 							self.element.children[0].value = True
 							self.element.add_class('helipad_checkentry_func')
 						else:
-							self.element.entryValue.set('Event: '+val)
+							self.element.entryValue.set(f'Event: {val}')
 							self.element.checkVar.set(True)
 							self.element.textbox.config(font=('Helvetica Neue', 12,'italic')) #Lucida doesn't have an italic?
 					self.svar = val
@@ -244,12 +239,11 @@ class CheckentryParam(Param):
 				self.bvar = True
 				self.svar = val
 				if isNotebook() and hasattr(self, 'element'): self.element.children[1].disabled = False
-		else:
-			if hasattr(self, 'elements') and not isNotebook(): self.elements[item].set(val)
-			elif isinstance(val, bool): self.bvar[item] = val
-			elif isinstance(val, self.entryType):
-				self.bvar[item] = True
-				self.svar[item] = val
+		elif hasattr(self, 'elements') and not isNotebook(): self.elements[item].set(val)
+		elif isinstance(val, bool): self.bvar[item] = val
+		elif isinstance(val, self.entryType):
+			self.bvar[item] = True
+			self.svar[item] = val
 
 		if updateGUI and isNotebook() and hasattr(self, 'element'):
 			els = self.element.children if self.per is None else self.elements[item].children
@@ -403,7 +397,7 @@ class Params(fStoreWithInterface):
 		if callable(setter):
 			args['setter'] = lambda val, item=None: setter(*([val, name, self.model] if per is None else [val, name, self.model, item]))
 
-		args.update({
+		args |= {
 			'name': name,
 			'title': title,
 			'default': dflt,
@@ -411,8 +405,8 @@ class Params(fStoreWithInterface):
 			'runtime': runtime,
 			'callback': callback,
 			'desc': desc,
-			'per': per
-		})
+			'per': per,
+		}
 		if per is not None:
 			if per=='breed':
 				if prim is None:
@@ -421,7 +415,8 @@ class Params(fStoreWithInterface):
 				args['prim'] = prim
 			args['pKeys'] = self.model.primitives[prim].breeds if per=='breed' else self.model.goods
 
-		if type.title()+'Param' in globals(): pclass = globals()[type.title()+'Param']
+		if f'{type.title()}Param' in globals():
+			pclass = globals()[f'{type.title()}Param']
 		else:
 			pclass = Param
 			args['type'] = type
@@ -552,8 +547,8 @@ class Shocks(CheckgridParam, fStoreWithInterface):
 	#Once at t=n. n can be an int or a list of periods
 	def atperiod(self, n):
 		def fn(t):
-			if isinstance(n, list): return t in n
-			else: return t==n
+			return t in n if isinstance(n, list) else t==n
+
 		return fn
 
 	#Regularly every n periods

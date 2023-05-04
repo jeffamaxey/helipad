@@ -22,10 +22,10 @@ heli.param('num_agent', 30)
 def capacity(self, gene=None, age=None):
 	if gene is None: gene = self.dominantLap
 	if age is None: age=self.age
-	
+
 	start = (10-self.model.param('pleio'))*age
 	l = sum(gene[start:start+10])
-	return 0 if l<0 else l
+	return max(l, 0)
 Agent.capacity = capacity
 
 @heli.hook
@@ -80,24 +80,22 @@ def agentDie(agent):
 		nominees = []
 		for a in heli.agents['agent']:
 			if a.hasReproduced or a.age<=1: continue
-			for n in range(round(a.language**3+1)): nominees.append(a.id) #+1 because otherwise we start out with no one able to reproduce
+			nominees.extend(a.id for _ in range(round(a.language**3+1)))
 	else: nominees = [a.id for a in heli.agents['agent'] if not a.hasReproduced and a.age>1]
 	n1 = n2 = heli.agent(random.choice(nominees))
 	while n1.id == n2.id: n2 = heli.agent(random.choice(nominees))
-	
+
 	#Complicated inheritance so do it manually
 	baby = n1.reproduce(partners=[n2])
 	parents = [n1, n2]
 	for n in parents:
-		n.gamete = []
 		inp = [n.dominantLap, n.recessivLap]
-		for i,v in enumerate(inp[1]):
-			n.gamete.append(inp[random.randrange(len(inp))][i])
+		n.gamete = [inp[random.randrange(len(inp))][i] for i, v in enumerate(inp[1])]
 	mf = random.randrange(len(parents))
 	baby.dominantLap = parents[mf].gamete
 	baby.recessivLap = parents[not mf].gamete
 	heli.births += 1
-	
+
 	#Mutate by flipping a bit in the dominant LAP once every 30 births
 	if not heli.births%30:
 		r = random.randrange(len(baby.dominantLap))
@@ -118,14 +116,20 @@ gchart2 = viz.addPlot('rec', 'Capacity by stage (recessive allele)', horizontal=
 
 def genoReporter(age, gene=False):
 	def rep(model):
-		return mean([a.capacity(gene=None if not gene else a.recessivLap, age=age) for a in model.agents['agent']])
+		return mean(
+			[
+				a.capacity(gene=a.recessivLap if gene else None, age=age)
+				for a in model.agents['agent']
+			]
+		)
+
 	return rep
 gcolors = ['F00', 'F03', 'F06', 'F09', 'F0C', 'C0F', '90F', '60F', '30F', '00F']
 for age in range(10):
-	heli.data.addReporter('geno-'+str(age), genoReporter(age))
-	heli.data.addReporter('rec-'+str(age), genoReporter(age, gene='rec'))
+	heli.data.addReporter(f'geno-{str(age)}', genoReporter(age))
+	heli.data.addReporter(f'rec-{str(age)}', genoReporter(age, gene='rec'))
 	# gplot.addSeries('geno-'+str(age), 'Capacity age '+str(age), '#'+gcolors[age])
-	gchart.addBar('geno-'+str(age), str(age), '#'+gcolors[age])
-	gchart2.addBar('rec-'+str(age), str(age), '#'+gcolors[age])
+	gchart.addBar(f'geno-{str(age)}', str(age), f'#{gcolors[age]}')
+	gchart2.addBar(f'rec-{str(age)}', str(age), f'#{gcolors[age]}')
 
 heli.launchCpanel()

@@ -66,13 +66,14 @@ viz = heli.useVisual(Charts)
 
 @heli.hook
 def agentInit(agent, model):
-	for i in range(20): setattr(agent, 'prop'+str(i), 0)
+	for i in range(20):
+		setattr(agent, f'prop{str(i)}', 0)
 
 @heli.hook
 def agentStep(agent, model, stage):
 	for i in range(20):
-		v = getattr(agent, 'prop'+str(i))
-		setattr(agent, 'prop'+str(i), v-1 if random.randint(0, 1) else v+1)
+		v = getattr(agent, f'prop{str(i)}')
+		setattr(agent, f'prop{str(i)}', v-1 if random.randint(0, 1) else v+1)
 
 @heli.hook
 def modelPostSetup(model):
@@ -104,19 +105,22 @@ net.config({
 
 gcolors = ['F00', 'F03', 'F06', 'F09', 'F0C', 'C0F', '90F', '60F', '30F', '00F']
 for i in range(20):
-	heli.data.addReporter('prop'+str(i), heli.data.agentReporter('prop'+str(i), std=0.1))
-	(bar1 if i<10 else bar2).addBar('prop'+str(i), str(i), '#'+gcolors[i%10])
+	heli.data.addReporter(
+		f'prop{str(i)}', heli.data.agentReporter(f'prop{str(i)}', std=0.1)
+	)
+	(bar1 if i<10 else bar2).addBar(f'prop{str(i)}', str(i), f'#{gcolors[i % 10]}')
 
 #Replace an agent, but only if we click during the current model time
 @heli.hook
 def agentClick(agents, plot, t):
 	if t != heli.t: return
-	
+
 	for agent in agents:
 		new = agent.reproduce()
 		enum = len(agent.edges[plot.kind]) if plot.kind in agent.edges else 0
 		agent.die()
-		for e in range(enum): newedge(heli)
+		for _ in range(enum):
+			newedge(heli)
 		print('Killing agent',agent.id,'and creating agent',new.id)
 	plot.update(None, t)
 	plot.draw(t, forceUpdate=True)

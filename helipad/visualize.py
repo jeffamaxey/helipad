@@ -99,7 +99,7 @@ class MPLVisualization(BaseVisualization):
 			for f in self.keys[event.key]: f(self.model, event)
 
 	def addKeypress(self, key, fn):
-		if not key in self.keys: self.keys[key] = []
+		if key not in self.keys: self.keys[key] = []
 		self.keys[key].append(fn)
 
 	@property
@@ -221,7 +221,7 @@ class TimeSeries(MPLVisualization):
 			for p in name: self.removePlot(p, reassign)
 			return
 
-		if not name in self.plots:
+		if name not in self.plots:
 			warnings.warn(_('No plot \'{}\' to remove.').format(name), None, 2)
 			return False
 
@@ -315,7 +315,7 @@ class Charts(MPLVisualization):
 			for p in name: self.removePlot(p)
 			return
 
-		if not name in self.plots:
+		if name not in self.plots:
 			warnings.warn(_('No plot \'{}\' to remove.').format(name), None, 2)
 			return False
 
@@ -387,16 +387,17 @@ class TimeSeriesPlot(ChartPlot):
 		if not isinstance(color, Color): color = Color(color)
 
 		#Check against columns and not reporters so subseries work
-		if not callable(reporter) and not reporter in self.viz.model.data.columns:
+		if not callable(reporter) and reporter not in self.viz.model.data.columns:
 			raise KeyError(_('Reporter \'{}\' does not exist. Be sure to register reporters before adding series.').format(reporter))
 
 		#Add subsidiary series (e.g. percentile bars)
 		subseries = []
 		if reporter in self.viz.model.data.reporters and self.viz.model.data.reporters[reporter].children:
-			for p in self.viz.model.data.reporters[reporter].children:
-				if '-unsmooth' in p: continue #Don't plot the unsmoothed series
-				subseries.append(self.addSeries(p, '', color.lighten(), style='--'))
-
+			subseries.extend(
+				self.addSeries(p, '', color.lighten(), style='--')
+				for p in self.viz.model.data.reporters[reporter].children
+				if '-unsmooth' not in p
+			)
 		#Since many series are added at setup time, we have to de-dupe
 		for s in self.series:
 			if s.reporter == reporter:
@@ -506,7 +507,7 @@ class BarChart(ChartPlot):
 	type = 'bar'
 	def __init__(self, **kwargs):
 		for arg in ['horizontal', 'logscale']:
-			if not arg in kwargs: kwargs[arg] = False
+			if arg not in kwargs: kwargs[arg] = False
 		super().__init__(**kwargs)
 		self.bars = []
 
@@ -517,10 +518,11 @@ class BarChart(ChartPlot):
 		#Add subsidiary series (e.g. percentile bars)
 		bar.err = []
 		if reporter in self.viz.model.data.reporters and self.viz.model.data.reporters[reporter].children:
-			for p in self.viz.model.data.reporters[reporter].children:
-				if '-unsmooth' in p: continue
-				bar.err.append(p)
-
+			bar.err.extend(
+				p
+				for p in self.viz.model.data.reporters[reporter].children
+				if '-unsmooth' not in p
+			)
 		if position is None or position>=len(self.bars): self.bars.append(bar)
 		else: self.bars.insert(position-1, bar)
 
@@ -530,8 +532,13 @@ class BarChart(ChartPlot):
 		axes.spines['right'].set_visible(False)
 
 		cfunc, eax = (axes.barh, 'xerr') if self.horizontal else (axes.bar, 'yerr')
-		kwa = {eax: [0 for bar in self.bars]} #Make sure our error bars go the right way
-		rects = cfunc(range(len(self.bars)), [0 for i in self.bars], color=[bar.color.hex for bar in self.bars], **kwa)
+		kwa = {eax: [0 for _ in self.bars]}
+		rects = cfunc(
+			range(len(self.bars)),
+			[0 for _ in self.bars],
+			color=[bar.color.hex for bar in self.bars],
+			**kwa
+		)
 		errors = rects.errorbar.lines[2][0].properties()['paths'] #Hope MPL's API doesn't ever move this…!
 		for bar, rect, err in zip(self.bars, rects, errors):
 			bar.element = rect
@@ -614,10 +621,11 @@ class NetworkPlot(ChartPlot):
 		def patchgrid_layout(G):
 			if not hasattr(self.viz.model, 'patches'): raise
 			return {i: data['position'] for i,data in G.nodes.items()}
+
 		lay.patchgrid_layout = patchgrid_layout
 		self.nx = nx
 		self.pandas = pandas
-		self.layClass = getattr(lay, self.layout+'_layout')
+		self.layClass = getattr(lay, f'{self.layout}_layout')
 		self.components = {}
 		axes.set_title(self.label, fontdict={'fontsize':10})
 
@@ -704,7 +712,7 @@ class NetworkPlot(ChartPlot):
 		li = layouts.index(self.layout)+1
 		while li>=len(layouts): li -= len(layouts)
 		self.layout = layouts[li]
-		self.layClass = getattr(lay, self.layout+'_layout')
+		self.layClass = getattr(lay, f'{self.layout}_layout')
 
 		#kamada_kawai requires scipy
 		try: self.draw(self.viz.scrubval)
